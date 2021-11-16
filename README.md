@@ -42,7 +42,7 @@ const char* HTML_PAGE = R"~("
 
 int main()
 {
-    auto doc = QGumboDocument::parse(HTML_PAGE);
+    auto doc = GWDocument::parse(HTML_PAGE);
     auto root = doc.rootNode();
     auto nodes = root.getElementsByTagName(HtmlTag::TITLE);
     Q_ASSERT(nodes.size() == 1);

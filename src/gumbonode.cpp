@@ -1,15 +1,26 @@
 #include <cstring>
 #include <sstream>
-#include <QString>
-#include <QDebug>
-#include <QStringList>
-#include "qgumbonode.h"
-#include "qgumboattribute.h"
+#include <string>
+#include <algorithm>
+//#include <stringList>
+#include <cassert>
+#include "gumbonode.h"
+#include "gumboattribute.h"
+
+#include <regex>
+std::vector<std::string> split(const std::string &input, const std::string &regex) {
+    // passing -1 as the submatch index parameter performs splitting
+    std::regex re(regex);
+    std::sregex_token_iterator
+            first{input.begin(), input.end(), re, -1},
+            last;
+    return {first, last};
+}
 
 namespace {
 
-const char* const ID_ATTRIBUTE 		= u8"id";
-const char* const CLASS_ATTRIBUTE 	= u8"class";
+const char* ID_ATTRIBUTE 		= "id";
+const char* CLASS_ATTRIBUTE 	= "class";
 
 template<typename TFunctor>
 bool iterateTree(GumboNode* node, TFunctor& functor)
@@ -47,53 +58,52 @@ bool iterateChildren(GumboNode* node, TFunctor& functor)
 
 } /* namespace */
 
-QGumboNode::QGumboNode()
+
+GWNode::GWNode()
 {
 }
 
-QGumboNode::QGumboNode(GumboNode* node) :
+GWNode::GWNode(GumboNode* node) :
     ptr_(node)
 {
     if (!ptr_)
         throw std::runtime_error("can't create Node from nullptr");
 }
 
-QGumboNodes QGumboNode::getElementById(const QString& nodeId) const
+GWNodes GWNode::getElementById(const std::string& nodeId) const
 {
-    Q_ASSERT(ptr_);
-
-    if (nodeId.isEmpty())
+    assert(ptr_);
+    if (nodeId.empty())
         throw std::invalid_argument("id can't be empty string");
 
-    QGumboNodes nodes;
+    GWNodes nodes;
 
     auto functor = [&nodes, &nodeId] (GumboNode* node) {
         GumboAttribute* attr = gumbo_get_attribute(&node->v.element.attributes, ID_ATTRIBUTE);
         if (attr) {
-            const QString value = QString::fromUtf8(attr->value);
-            if (value.compare(nodeId, Qt::CaseInsensitive) == 0) {
-                nodes.emplace_back(QGumboNode(node));
+            const std::string value(attr->value);
+            if (value == nodeId) {
+                nodes.emplace_back(GWNode(node));
                 return true;
             }
         }
         return false;
     };
-
     iterateTree(ptr_, functor);
 
     return nodes;
 }
 
-QGumboNodes QGumboNode::getElementsByTagName(HtmlTag tag) const
+GWNodes GWNode::getElementsByTagName(HtmlTag tag) const
 {
-    Q_ASSERT(ptr_);
+    assert(ptr_);
 
     GumboTag tag_ = static_cast<GumboTag>(tag);
-    QGumboNodes nodes;
+    GWNodes nodes;
 
     auto functor = [&nodes, tag_](GumboNode* node) {
         if (node->v.element.tag == tag_) {
-            nodes.emplace_back(QGumboNode(node));
+            nodes.emplace_back(GWNode(node));
         }
         return false;
     };
@@ -103,31 +113,23 @@ QGumboNodes QGumboNode::getElementsByTagName(HtmlTag tag) const
     return nodes;
 }
 
-QGumboNodes QGumboNode::getElementsByClassName(const QString& name) const
+GWNodes GWNode::getElementsByClassName(const std::string& name) const
 {
-    Q_ASSERT(ptr_);
+    assert(ptr_);
 
-    if (name.isEmpty())
+    if (name.empty())
         throw std::invalid_argument("class name can't be empty string");
 
-    QGumboNodes nodes;
+    GWNodes nodes;
 
     auto functor = [&nodes, &name] (GumboNode* node) {
         GumboAttribute* attr = gumbo_get_attribute(&node->v.element.attributes, CLASS_ATTRIBUTE);
         if (attr) {
-            const QString value = QString::fromUtf8(attr->value);
-
-#if QT_VERSION < QT_VERSION_CHECK(5, 14, 0)
-            const QVector<QStringRef> parts =
-                    value.splitRef(QChar(' '), QString::SkipEmptyParts, Qt::CaseInsensitive);
-#else
-            const QVector<QStringRef> parts =
-                    value.splitRef(QChar(' '), Qt::SkipEmptyParts, Qt::CaseInsensitive);
-#endif
-
-            for (const QStringRef& part: parts) {
-                if (part.compare(name, Qt::CaseInsensitive) == 0) {
-                    nodes.emplace_back(QGumboNode(node));
+            const std::string value(attr->value);
+            auto parts = split(value, " ");
+            for (const std::string &part : parts) {
+                if (part == name) {
+                    nodes.emplace_back(GWNode(node));
                     break;
                 }
             }
@@ -140,14 +142,14 @@ QGumboNodes QGumboNode::getElementsByClassName(const QString& name) const
     return nodes;
 }
 
-QGumboNodes QGumboNode::childNodes() const
+GWNodes GWNode::childNodes() const
 {
-    Q_ASSERT(ptr_);
+    assert(ptr_);
 
-    QGumboNodes nodes;
+    GWNodes nodes;
 
     auto functor = [&nodes] (GumboNode* node) {
-        nodes.emplace_back(QGumboNode(node));
+        nodes.emplace_back(GWNode(node));
         return false;
     };
 
@@ -156,15 +158,15 @@ QGumboNodes QGumboNode::childNodes() const
     return nodes;
 }
 
-QGumboNodes QGumboNode::children() const
+GWNodes GWNode::children() const
 {
-    Q_ASSERT(ptr_);
+    assert(ptr_);
 
-    QGumboNodes nodes;
+    GWNodes nodes;
 
     auto functor = [&nodes] (GumboNode* node) {
         if (node->type == GUMBO_NODE_ELEMENT) {
-            nodes.emplace_back(QGumboNode(node));
+            nodes.emplace_back(GWNode(node));
         }
         return false;
     };
@@ -174,9 +176,9 @@ QGumboNodes QGumboNode::children() const
     return nodes;
 }
 
-int QGumboNode::childElementCount() const
+int GWNode::childElementCount() const
 {
-    Q_ASSERT(ptr_);
+    assert(ptr_);
 
     int count = 0;
 
@@ -191,15 +193,15 @@ int QGumboNode::childElementCount() const
     return count;
 }
 
-QString QGumboNode::innerText() const
+std::string GWNode::innerText() const
 {
-    Q_ASSERT(ptr_);
+    assert(ptr_);
 
-    QString text;
+    std::string text;
 
     auto functor = [&text] (GumboNode* node) {
         if (node->type == GUMBO_NODE_TEXT) {
-            text += QString::fromUtf8(node->v.text.text);
+            text += std::string(node->v.text.text);
         }
         return false;
     };
@@ -209,11 +211,11 @@ QString QGumboNode::innerText() const
     return text;
 }
 
-QString QGumboNode::outerHtml() const
+std::string GWNode::outerHtml() const
 {
-    Q_ASSERT(ptr_);
+    assert(ptr_);
 
-    QString text;
+    std::string text;
     switch (ptr_->type) {
     case GUMBO_NODE_DOCUMENT: {
         throw std::runtime_error("invalid node type");
@@ -223,19 +225,19 @@ QString QGumboNode::outerHtml() const
         const auto& tag = elem.original_tag;
         if (tag.data && tag.length) {
             int lenght = elem.end_pos.offset - elem.start_pos.offset + elem.original_end_tag.length;
-            Q_ASSERT(lenght > 0);
-            text = QString::fromUtf8(tag.data, lenght);
+            assert(lenght > 0);
+            text = tag.data;
         }
         break;
     }
     default: {
         const auto& str = ptr_->v.text.original_text;
-        text = QString::fromUtf8(str.data, str.length);
+        text = str.data;
     }}
     return text;
 }
 
-HtmlTag QGumboNode::tag() const
+HtmlTag GWNode::tag() const
 {
     if (isElement())
         return HtmlTag(ptr_->v.element.tag);
@@ -243,99 +245,94 @@ HtmlTag QGumboNode::tag() const
     return HtmlTag::UNKNOWN;
 }
 
-QString QGumboNode::tagName() const
+std::string GWNode::tagName() const
 {
-    Q_ASSERT(ptr_);
+    assert(ptr_);
     GumboTag tag = ptr_->v.element.tag;
-    return QString::fromUtf8(gumbo_normalized_tagname(tag));
+    return gumbo_normalized_tagname(tag);
 }
 
-QString QGumboNode::nodeName() const
+std::string GWNode::nodeName() const
 {
     return tagName();
 }
 
-QString QGumboNode::id() const
+std::string GWNode::id() const
 {
     GumboAttribute* attr = gumbo_get_attribute(&ptr_->v.element.attributes, ID_ATTRIBUTE);
     if (attr)
-        return QString::fromUtf8(attr->value);
+        return attr->value;
 
-    return QString();
+    return std::string();
 }
 
-QStringList QGumboNode::classList() const
+std::vector<std::string> GWNode::classList() const
 {
     GumboAttribute* attr = gumbo_get_attribute(&ptr_->v.element.attributes, CLASS_ATTRIBUTE);
     if (attr) {
-        QString values = QString::fromUtf8(attr->value);
-
-#if QT_VERSION < QT_VERSION_CHECK(5, 14, 0)
-        return values.split(u8" ", QString::SkipEmptyParts, Qt::CaseInsensitive);
-#else
-        return values.split(u8" ", Qt::SkipEmptyParts, Qt::CaseInsensitive);
-#endif
+        std::string values(attr->value);
+        return split(values, " ");
     }
 
-    return QStringList();
+    return std::vector<std::string>();
 }
 
-bool QGumboNode::isElement() const
+bool GWNode::isElement() const
 {
     return ptr_->type == GUMBO_NODE_ELEMENT;
 }
 
-bool QGumboNode::hasAttribute(const QString& name) const
+bool GWNode::hasAttribute(const std::string& name) const
 {
-    if (name.isEmpty())
+    if (name.empty())
         throw std::invalid_argument("attribute can't be empty string");
 
     GumboAttribute* attr = gumbo_get_attribute(&ptr_->v.element.attributes,
-                                               name.toUtf8().constData());
+                                               name.c_str());
     return attr != nullptr;
 }
 
-QString QGumboNode::getAttribute(const QString& attrName) const
+std::string GWNode::getAttribute(const std::string& attrName) const
 {
-    if (attrName.isEmpty())
+    if (attrName.empty())
         throw std::invalid_argument("attribute name can't be empty string");
 
     GumboAttribute* attr = gumbo_get_attribute(&ptr_->v.element.attributes,
-                                               attrName.toUtf8().constData());
+                                               attrName.c_str());
     if (attr)
-        return QString::fromUtf8(attr->value);
+        return (attr->value);
 
-    return QString();
+    return std::string();
 }
 
-QGumboAttributes QGumboNode::allAttributes() const
+GWAttributes GWNode::allAttributes() const
 {
-    Q_ASSERT(ptr_);
+    assert(ptr_);
 
-    QGumboAttributes attrs;
+    GWAttributes attrs;
 
     for (uint i = 0, len = ptr_->v.element.attributes.length; i < len; ++i) {
         GumboAttribute* attr =
                 static_cast<GumboAttribute*>(ptr_->v.element.attributes.data[i]);
-        attrs.emplace_back(QGumboAttribute(attr->name, attr->value));
+        attrs.emplace_back(GWAttribute(attr->name, attr->value));
     }
     return attrs;
 }
 
 
-void QGumboNode::forEach(std::function<void(const QGumboNode&)> func) const
+void GWNode::forEach(std::function<void(const GWNode&)> func) const
 {
-    Q_ASSERT(ptr_);
+    assert(ptr_);
 
     auto functor = [&func](GumboNode* node) {
-        func(QGumboNode(node));
+        func(GWNode(node));
         return false;
     };
 
     iterateTree(ptr_, functor);
 }
 
-QGumboNode::operator bool() const
+GWNode::operator bool() const
 {
     return ptr_;
 }

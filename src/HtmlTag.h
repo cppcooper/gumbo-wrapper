@@ -1,7 +1,7 @@
 #ifndef HTMLTAG_H
 #define HTMLTAG_H
 
-#include "gumbo-parser/src/gumbo.h"
+#include <gumbo.h>
 
 enum class HtmlTag
 {
